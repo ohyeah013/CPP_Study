@@ -1,0 +1,283 @@
+#include <iostream>
+#include <Windows.h>
+#include <conio.h>  //包含键盘响应事件
+#include <vector>
+
+#pragma region STRUCT
+
+struct SnakeInfo
+{
+	int length;
+	int x;       //第一个符号的水平位置
+	int y;       //第一个符号的垂直位置
+	char head;   //第一个符号，指代图片
+	char movingDirection;   //下一次刷新的前进方向
+
+	int score;   //分数
+};
+
+struct FoodInfo
+{
+	int foodLocationX;
+	int foodLocationY;
+	char foodSymbol;
+};
+
+#pragma endregion
+
+#pragma region VARs  
+//执行一次，用来放全局变量
+bool gameOver = false;
+
+const int Height = 20;
+const int Width = 40;
+char lastTouch = 'w';
+
+int prevBodyX = 0;//身体上一帧的位置
+int prevBodyY = 0;
+int prevHeadX = 0;//头部上一帧的位置信息
+int prevHeadY = 0;
+std::vector<int> tempX(2);//定义一组整数型一维数组，至少初始化一个数值供头部位置使用
+std::vector<int> tempY(2);//考虑到自碰撞时时刻检测多一位身体部位，所以至少初始化2个数值
+
+FoodInfo foodActual;
+SnakeInfo snake;  //实例化自定义结构体
+
+#pragma endregion
+
+void SetObjectLocation(int x, int y)
+{
+	//获取屏幕坐标  COORD关键字
+	COORD coord;
+	// 将传入的形式参数作为屏幕坐标参数更新
+	coord.X = x;
+	coord.Y = y;
+	//设置到实际连接的显示器上 console控制台 cursorposition鼠标的指示灯
+	SetConsoleCursorPosition(GetStdHandle(STD_OUTPUT_HANDLE), coord);
+};
+
+void SpawnFood(FoodInfo& food)
+{
+	//使用引用传递，每次随机位置生成食物后，实际改变传入的实参的值
+	//和舍得移动逻辑不同
+
+	//生成随机数
+	srand(static_cast<unsigned int>(time(0)));//影响rand()值
+	//在游戏区域内生成，故随机数结果分别除以（长 - 2）取余数获得范围内随机值
+	food.foodLocationX = rand() % (Width - 2) + 1;
+	food.foodLocationY = rand() % (Height - 2) + 1;
+	//在屏幕上显示
+	SetObjectLocation(food.foodLocationX, food.foodLocationY);
+	std::cout << food.foodSymbol;
+};
+
+bool CheckSelfCollison(SnakeInfo snake, std::vector<int> tempX, std::vector<int> tempY)
+{
+	//初始时头部本身计为一个长度，所以默认+1
+	int len = snake.length + 1;
+
+	//每帧循环检查是否有人和身体部位的位置和头部的位置完全相等，如有则视为碰撞
+	for (int i = 1; i < len; i++)
+	{
+		if (snake.length > 1 and snake.x == tempX[i] and snake.y == tempY[i])
+		{
+			return true;
+		}
+	}
+
+	return false;
+}
+
+void Initialization()
+{
+	//初始化游戏
+	snake.length = 1;
+	snake.score = 0;
+	snake.x = Width / 2;    //位于场景中间
+	snake.y = Height / 2;
+	snake.head = 'O';
+	//snake.movingDirection
+
+	foodActual.foodSymbol = 'F';//代表食物
+
+	//绘制区域
+	for (int i = 0; i < Width; i++)
+	{
+		std::cout << "#";
+	};
+	std::cout << std::endl;
+
+	for (int i = 0; i < Height; i++)
+	{
+		for (int j = 0; j < Width; j++)
+		{
+			if (j == 0 or j == Width - 1)
+			{
+				std::cout << "#";
+			}
+			else
+			{
+				std::cout << " ";
+			}
+
+		};
+		std::cout << std::endl;
+	};
+	for (int i = 0; i < Width; i++)
+	{
+		std::cout << "#";
+	};
+
+	//初始时默认区域内随机生成一次食物
+	SpawnFood(foodActual);//传入实参
+}
+
+void GameMode()
+{
+	if ((snake.x == 0 or snake.x == Width - 1) or
+		(snake.y == 0 or snake.y == Height + 1) or
+		CheckSelfCollison(snake, tempX, tempY))
+	{
+		//游戏结束
+		gameOver = true;
+		//在30.22的位置显示光标并输出游戏结束
+		SetObjectLocation(30, 22);
+		std::cout << "游戏结束!!";
+	}
+	else if (snake.x == foodActual.foodLocationX and snake.y == foodActual.foodLocationY)
+	{
+		snake.length += 1;
+		snake.score += 10;
+
+		SpawnFood(foodActual);
+
+		//动态数组中末位添加一个整型数据用于新增身体部分位置信息更新
+		tempX.push_back(int());//int()代表分隔符，push_back指从末位添加元素
+		tempY.push_back(int());
+	};
+}
+
+void PlayerController()
+{
+	//kbhit = keyboardhit 键盘按键事件,如果按键盘，返回true
+	if (_kbhit())
+	{
+		//定义局部变量touch负责接收键盘输入响应
+		char touch = _getch();
+
+		//贪吃蛇无法180度移动,所以反向时不执行转向
+		//按下w时角色没有反向移动，代表字符s，角色向上方移动
+		if (touch == 'w' and snake.movingDirection != 's')
+		{
+			snake.movingDirection = 'w';
+			lastTouch = 'w';
+		}
+		else if (touch == 's' and snake.movingDirection != 'w')
+		{
+			snake.movingDirection = 's';
+			lastTouch = 's';
+		}
+		else if (touch == 'a' and snake.movingDirection != 'd')
+		{
+			snake.movingDirection = 'a';
+			lastTouch = 'a';
+		}
+		else if (touch == 'd' and snake.movingDirection != 'a')
+		{
+			snake.movingDirection = 'd';
+			lastTouch = 'd';
+		}
+		else
+		{
+			snake.movingDirection = lastTouch;
+		}
+	};
+
+	//定义如何移动
+	//向上
+	if (snake.movingDirection == 'w') snake.y--;
+	// 向下
+	else if (snake.movingDirection == 's') snake.y++;
+	// 向左
+	else if (snake.movingDirection == 'a') snake.x--;
+	// 向右
+	else if (snake.movingDirection == 'd') snake.x++;
+	// 其他键，直接跳出；实际snake.movingDirection仅会包含w s a d
+	else return;
+
+};
+
+void Tick()
+{
+	//std::cout << "Tick every frame" << std::endl;
+	//模拟每帧刷新，每隔0.1s刷新
+	Sleep(200);//休眠100ms
+
+	//循环搜索，按照当前蛇的长度顺次交换信息位置，直到最后一位
+	for (int i = 0; i < snake.length; i++)
+	{
+		//因为头部始终显示，所以从身体部分开始交换信息
+		//目标是把当前头部信息逐个替换身体各个部分的位置信息
+		prevBodyX = tempX[i];
+		prevBodyY = tempY[i];
+		//值交换，再把当前头部位置放入tempX，tempY
+		tempX[i] = prevHeadX;
+		tempY[i] = prevHeadY;
+		//值交换，把欲清除的prevBody位置信息传回prevHead
+		//假如跳出for循环，prevHead的值会被后面的逻辑重新赋值"prevHeadX = tempX[0];"
+		//假如继续for循环，当前prevhead的信息会继续交还给后续身体
+		prevHeadX = prevBodyX;
+		prevHeadY = prevBodyY;
+	}
+
+	//每次刷新前，强制改变清除0,0的符号
+	if (prevBodyX == 0)
+	{
+		prevBodyX = 1;
+		prevBodyY = 1;
+	}
+
+	//清除上一帧的符号，注意要再刷新这一帧之前进行
+	//且金清楚位于尾部的身体部位
+	SetObjectLocation(prevBodyX, prevBodyY);
+	std::cout << " ";//刷新为空格
+
+
+	//刷新当前蛇的头部，（尚未清楚上一次的头部）
+	SetObjectLocation(snake.x, snake.y);
+	std::cout << snake.head;
+	//值交换，以刷新为界，刷新后立刻把头部当前位置存放入PrevHead变量
+	prevHeadX = tempX[0];
+	prevHeadY = tempY[0];
+	//值交换，再把当前头部位置放入tempX，tempY
+	tempX[0] = snake.x;
+	tempY[0] = snake.y;
+};
+
+void UserInterface()
+{
+	SetObjectLocation(0, Height + 2);
+	std::cout << "得分：" << snake.score << std::endl;
+	std::cout << "蛇的长度：" << snake.length << std::endl;
+
+
+}
+
+
+int main()
+{
+
+	Initialization();
+
+
+	while (!gameOver)
+	{
+		GameMode();
+		PlayerController();
+		Tick();
+		UserInterface();
+
+	};
+
+	return 0;
+};
